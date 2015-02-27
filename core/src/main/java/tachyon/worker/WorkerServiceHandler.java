@@ -40,8 +40,8 @@ public class WorkerServiceHandler implements WorkerService.Iface {
   }
 
   @Override
-  public void accessBlock(long blockId) throws TException {
-    mWorkerStorage.accessBlock(blockId);
+  public void accessBlock(long userId, long blockId) throws TException {
+    mWorkerStorage.accessBlock(userId, blockId);
   }
 
   @Override

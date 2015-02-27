@@ -245,8 +245,9 @@ public class WorkerStorage {
             LOG.error("Failed to rename from " + midPath + " to " + dstPath);
           }
           mMasterClient.addCheckpoint(mWorkerId, fileId, fileSizeByte, dstPath);
-          long shouldTakeMs = (long) (1000.0 * fileSizeByte / Constants.MB
-              / WorkerConf.get().WORKER_PER_THREAD_CHECKPOINT_CAP_MB_SEC);
+          long shouldTakeMs =
+              (long) (1000.0 * fileSizeByte / Constants.MB 
+                  / WorkerConf.get().WORKER_PER_THREAD_CHECKPOINT_CAP_MB_SEC);
           long currentTimeMs = System.currentTimeMillis();
           if (startCopyTimeMs + shouldTakeMs > currentTimeMs) {
             long shouldSleepMs = startCopyTimeMs + shouldTakeMs - currentTimeMs;
@@ -289,8 +290,7 @@ public class WorkerStorage {
   private List<Integer> mPriorityDependencies = new ArrayList<Integer>();
 
   private final ExecutorService mCheckpointExecutor = Executors.newFixedThreadPool(
-      WorkerConf.get().WORKER_CHECKPOINT_THREADS,
-      ThreadFactoryUtils.build("checkpoint-%d"));
+      WorkerConf.get().WORKER_CHECKPOINT_THREADS, ThreadFactoryUtils.build("checkpoint-%d"));
 
   private final ExecutorService mExecutorService;
   private long mCapacityBytes;
@@ -363,10 +363,10 @@ public class WorkerStorage {
    * 
    * @param blockId The id of the block
    */
-  void accessBlock(long blockId) {
+  void accessBlock(long userId, long blockId) {
     StorageDir foundDir = getStorageDirByBlockId(blockId);
     if (foundDir != null) {
-      foundDir.accessBlock(blockId);
+      foundDir.accessBlock(blockId, userId);
     }
   }
 
@@ -479,9 +479,8 @@ public class WorkerStorage {
    * @throws BlockInfoException
    * @throws IOException
    */
-  public void cacheBlock(long userId, long blockId)
-      throws FileDoesNotExistException, SuspectedFileSizeException, BlockInfoException,
-      IOException {
+  public void cacheBlock(long userId, long blockId) throws FileDoesNotExistException,
+      SuspectedFileSizeException, BlockInfoException, IOException {
     StorageDir storageDir = mTempBlockLocation.remove(new Pair<Long, Long>(userId, blockId));
     if (storageDir == null) {
       throw new FileDoesNotExistException("Block doesn't exist! blockId:" + blockId);
@@ -508,7 +507,7 @@ public class WorkerStorage {
    */
   public void cancelBlock(long userId, long blockId) {
     StorageDir storageDir = mTempBlockLocation.remove(new Pair<Long, Long>(userId, blockId));
-    
+
     if (storageDir != null) {
       mUserIdToTempBlockIds.remove(userId, blockId);
       try {
@@ -732,8 +731,8 @@ public class WorkerStorage {
     StorageDir storageDir = lockBlock(blockId, userId);
     if (storageDir == null) {
       return false;
-    } else if (StorageDirId.getStorageLevelAliasValue(storageDir.getStorageDirId())
-        != mStorageTiers.get(0).getAlias().getValue()) {
+    } else if (StorageDirId.getStorageLevelAliasValue(storageDir.getStorageDirId()) != mStorageTiers
+        .get(0).getAlias().getValue()) {
       long blockSize = storageDir.getBlockSize(blockId);
       StorageDir dstStorageDir = requestSpace(null, userId, blockSize);
       if (dstStorageDir == null) {
@@ -795,14 +794,14 @@ public class WorkerStorage {
 
   /**
    * Get temporary file path for some block, it is used to choose appropriate StorageDir for some
-   * block file with specified initial size. 
+   * block file with specified initial size.
    * 
    * @param userId the id of the user who wants to write the file
    * @param blockId the id of the block
-   * @param initialBytes the initial size allocated for the block 
+   * @param initialBytes the initial size allocated for the block
    * @return the temporary path of the block file
    * @throws OutOfSpaceException
-   * @throws FileAlreadyExistException 
+   * @throws FileAlreadyExistException
    */
   public String requestBlockLocation(long userId, long blockId, long initialBytes)
       throws OutOfSpaceException, FileAlreadyExistException {
@@ -824,8 +823,8 @@ public class WorkerStorage {
   }
 
   /**
-   * Request space from the worker, and expecting worker return the appropriate StorageDir which
-   * has enough space for the requested space size
+   * Request space from the worker, and expecting worker return the appropriate StorageDir which has
+   * enough space for the requested space size
    * 
    * @param dirCandidate The StorageDir in which the space will be allocated.
    * @param userId The id of the user who send the request
@@ -865,6 +864,14 @@ public class WorkerStorage {
     return dir;
   }
 
+  public boolean requestSpace(long userId, long blockId, long requestBytes, boolean initial)
+      throws FileDoesNotExistException {
+    if (initial) {
+      return true;
+    }
+    return true;
+  }
+
   /**
    * Request space from the specified StorageDir, it is used for requesting space for the block
    * which is partially written in some StorageDir
@@ -873,9 +880,34 @@ public class WorkerStorage {
    * @param blockId The id of the block that the space is allocated for
    * @param requestBytes The requested space size, in bytes
    * @return true if succeed, false otherwise
-   * @throws FileDoesNotExistException 
+   * @throws FileDoesNotExistException
    */
   public boolean requestSpace(long userId, long blockId, long requestBytes)
+      throws FileDoesNotExistException {
+    StorageDir storageDir = mTempBlockLocation.get(new Pair<Long, Long>(userId, blockId));
+    if (storageDir == null) {
+      throw new FileDoesNotExistException("Temporary block file doesn't exist! blockId:" + blockId);
+    }
+
+    if (storageDir == requestSpace(storageDir, userId, requestBytes)) {
+      storageDir.updateTempBlockAllocatedBytes(userId, blockId, requestBytes);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  /**
+   * User-aware allocation Request space from the specified StorageDir, it is used for requesting
+   * space for the block which is partially written in some StorageDir
+   * 
+   * @param userId The id of the user who send the request
+   * @param blockId The id of the block that the space is allocated for
+   * @param requestBytes The requested space size, in bytes
+   * @return true if succeed, false otherwise
+   * @throws FileDoesNotExistException
+   */
+  public boolean requestSpaceUser(long userId, long blockId, long requestBytes)
       throws FileDoesNotExistException {
     StorageDir storageDir = mTempBlockLocation.get(new Pair<Long, Long>(userId, blockId));
     if (storageDir == null) {

@@ -204,7 +204,9 @@ public final class MasterClient implements Closeable {
       }
 
       try {
-        mUserId = mClient.user_getUserId();
+        if (mUserId == -1) {
+          mUserId = mClient.user_getUserId();
+        }
       } catch (TException e) {
         lastException = e;
         LOG.error(e.getMessage(), e);
@@ -277,7 +279,15 @@ public final class MasterClient implements Closeable {
     }
   }
 
+  public boolean setUserId(long id ) {
+    mUserId = id;
+    return true;
+  }
+  
   public synchronized long getUserId() throws IOException {
+    if (mUserId != -1) {
+      return mUserId;
+    }
     while (!mIsShutdown) {
       connect();
 

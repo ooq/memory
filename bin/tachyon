@@ -239,5 +239,6 @@ else
   printUsage
   exit 1
 fi
+echo $JAVA -cp $CLASSPATH -Dtachyon.home=$TACHYON_HOME -Dtachyon.master.hostname=$TACHYON_MASTER_ADDRESS -Dtachyon.logger.type=USER_LOGGER $TACHYON_JAVA_OPTS $CLASS $PARAMETER $@
 
 $JAVA -cp $CLASSPATH -Dtachyon.home=$TACHYON_HOME -Dtachyon.master.hostname=$TACHYON_MASTER_ADDRESS -Dtachyon.logger.type=USER_LOGGER $TACHYON_JAVA_OPTS $CLASS $PARAMETER $@

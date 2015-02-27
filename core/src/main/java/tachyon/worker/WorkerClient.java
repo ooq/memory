@@ -89,7 +89,7 @@ public class WorkerClient implements Closeable {
     mustConnect();
 
     try {
-      mClient.accessBlock(blockId);
+      mClient.accessBlock(mMasterClient.getUserId(), blockId);
     } catch (TException e) {
       LOG.error("TachyonClient accessLocalBlock(" + blockId + ") failed");
       mConnected = false;

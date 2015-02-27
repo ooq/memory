@@ -82,24 +82,24 @@ public class EvictStrategyTest {
 
     pinList.add(1);
     Pair<StorageDir, List<tachyon.worker.hierarchy.BlockInfo>> lruResult =
-        eviction.getDirCandidate(mStorageDirs, pinList, 300);
+        eviction.getDirCandidate(-1, mStorageDirs, pinList, 300);
     Assert.assertEquals(mStorageDirs[1], lruResult.getFirst());
     Assert.assertEquals(1, lruResult.getSecond().size());
     Assert.assertEquals(lruResult.getSecond().get(0).getBlockId(), BlockInfo.computeBlockId(2, 0));
 
     pinList.add(2);
-    lruResult = eviction.getDirCandidate(mStorageDirs, pinList, 300);
+    lruResult = eviction.getDirCandidate(-1, mStorageDirs, pinList, 300);
     Assert.assertEquals(mStorageDirs[2], lruResult.getFirst());
     Assert.assertEquals(1, lruResult.getSecond().size());
     Assert.assertEquals(lruResult.getSecond().get(0).getBlockId(), BlockInfo.computeBlockId(3, 0));
 
     eviction = new EvictLRU(false);
-    lruResult = eviction.getDirCandidate(mStorageDirs, pinList, 300);
+    lruResult = eviction.getDirCandidate(-1, mStorageDirs, pinList, 300);
     Assert.assertEquals(mStorageDirs[0], lruResult.getFirst());
     Assert.assertEquals(1, lruResult.getSecond().size());
     Assert.assertEquals(lruResult.getSecond().get(0).getBlockId(), BlockInfo.computeBlockId(1, 0));
 
-    lruResult = eviction.getDirCandidate(mStorageDirs, pinList, 1001);
+    lruResult = eviction.getDirCandidate(-1, mStorageDirs, pinList, 1001);
     Assert.assertEquals(null, lruResult);
   }
 
@@ -117,25 +117,25 @@ public class EvictStrategyTest {
 
     pinList.add(1);
     Pair<StorageDir, List<tachyon.worker.hierarchy.BlockInfo>> lruResult =
-        eviction.getDirCandidate(mStorageDirs, pinList, 600);
+        eviction.getDirCandidate(-1, mStorageDirs, pinList, 600);
     Assert.assertEquals(mStorageDirs[1], lruResult.getFirst());
     Assert.assertEquals(1, lruResult.getSecond().size());
     Assert.assertEquals(lruResult.getSecond().get(0).getBlockId(), BlockInfo.computeBlockId(2, 0));
 
     pinList.add(2);
-    lruResult = eviction.getDirCandidate(mStorageDirs, pinList, 600);
+    lruResult = eviction.getDirCandidate(-1, mStorageDirs, pinList, 600);
     Assert.assertEquals(mStorageDirs[2], lruResult.getFirst());
     Assert.assertEquals(2, lruResult.getSecond().size());
     Assert.assertEquals(lruResult.getSecond().get(0).getBlockId(), BlockInfo.computeBlockId(3, 0));
     Assert.assertEquals(lruResult.getSecond().get(1).getBlockId(), BlockInfo.computeBlockId(6, 0));
 
     eviction = new EvictLRU(false);
-    lruResult = eviction.getDirCandidate(mStorageDirs, pinList, 400);
+    lruResult = eviction.getDirCandidate(-1, mStorageDirs, pinList, 400);
     Assert.assertEquals(mStorageDirs[0], lruResult.getFirst());
     Assert.assertEquals(1, lruResult.getSecond().size());
     Assert.assertEquals(lruResult.getSecond().get(0).getBlockId(), BlockInfo.computeBlockId(1, 0));
 
-    lruResult = eviction.getDirCandidate(mStorageDirs, pinList, 1001);
+    lruResult = eviction.getDirCandidate(-1, mStorageDirs, pinList, 1001);
     Assert.assertEquals(null, lruResult);
   }
 

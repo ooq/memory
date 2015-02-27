@@ -34,7 +34,7 @@ public final class EvictPartialLRU extends EvictLRUBase {
   }
 
   @Override
-  public synchronized Pair<StorageDir, List<BlockInfo>> getDirCandidate(StorageDir[] storageDirs,
+  public synchronized Pair<StorageDir, List<BlockInfo>> getDirCandidate(long userId, StorageDir[] storageDirs,
       Set<Integer> pinList, long requestBytes) {
     List<BlockInfo> blockInfoList = new ArrayList<BlockInfo>();
     Set<StorageDir> ignoredDirs = new HashSet<StorageDir>();
@@ -43,7 +43,7 @@ public final class EvictPartialLRU extends EvictLRUBase {
       Set<Long> blockIdSet = new HashSet<Long>();
       long sizeToEvict = 0;
       while (sizeToEvict + dirSelected.getAvailableBytes() < requestBytes) {
-        Pair<Long, Long> oldestAccess = getLRUBlock(dirSelected, blockIdSet, pinList);
+        Pair<Long, Long> oldestAccess = getLRUBlock(userId, dirSelected, blockIdSet, pinList);
         if (oldestAccess.getFirst() != -1) {
           long blockSize = dirSelected.getBlockSize(oldestAccess.getFirst());
           sizeToEvict += blockSize;

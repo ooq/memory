@@ -20,6 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
@@ -29,6 +30,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.eclipse.jetty.security.PropertyUserStore.UserListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,12 @@ public final class StorageDir {
   /** Mapping from blockId to its last access time in milliseconds */
   private final ConcurrentMap<Long, Long> mLastBlockAccessTimeMs =
       new ConcurrentHashMap<Long, Long>();
+  /** Mapping from block to a list of accessible users */
+  private final ConcurrentMap<Long, HashSet<Long>> mBlockToAllowedUsers =
+      new ConcurrentHashMap<Long, HashSet<Long>>();
+  /** Mapping from user to a map from blockId to last access time */
+  private final ConcurrentMap<Long, ConcurrentMap<Long, Long>> mUserToBlockLastAccessTimeMs =
+      new ConcurrentHashMap<Long, ConcurrentMap<Long, Long>>();
   /** List of added block Ids to be reported */
   private final BlockingQueue<Long> mAddedBlockIdList = new ArrayBlockingQueue<Long>(
       Constants.WORKER_BLOCKS_QUEUE_SIZE);
@@ -109,6 +117,55 @@ public final class StorageDir {
   }
 
   /**
+   * update last access time of a block for a particular user
+   */
+  public void updateUserAccessBlock(long blockId, long userId) {
+
+    LOG.info("block {} is accessed by user {}", blockId, userId);
+    synchronized (mUserToBlockLastAccessTimeMs) {
+      ConcurrentMap<Long, Long> accesses = mUserToBlockLastAccessTimeMs.get(userId);
+      if (accesses == null) {
+        accesses = new ConcurrentHashMap<Long, Long>();
+      }
+      accesses.put(blockId, System.currentTimeMillis());
+    }
+    HashSet<Long> userList = mBlockToAllowedUsers.get(blockId);
+    if (userList == null) {
+      userList = new HashSet<Long>();
+    }
+    userList.add(userId);
+    mBlockToAllowedUsers.put(blockId, userList);
+  }
+
+  /**
+   * update last access time of a block for a particular user
+   */
+  public void removeUserAccessBlock(long blockId) {
+    LOG.info("block {} is deleted for all users", blockId);
+    synchronized (mUserToBlockLastAccessTimeMs) {
+      for (long userId : mUserToBlockLastAccessTimeMs.keySet()) {
+        ConcurrentMap<Long, Long> accesses = mUserToBlockLastAccessTimeMs.get(userId);
+        accesses.remove(blockId);
+      }
+    }
+  }
+
+  /**
+   * Update the last access time of the block
+   * 
+   * @param blockId Id of the block
+   */
+  public void accessBlock(long blockId, long userId) {
+
+    synchronized (mLastBlockAccessTimeMs) {
+      if (containsBlock(blockId)) {
+        mLastBlockAccessTimeMs.put(blockId, System.currentTimeMillis());
+      }
+    }
+    updateUserAccessBlock(blockId, userId);
+  }
+
+  /**
    * Update the last access time of the block
    * 
    * @param blockId Id of the block
@@ -128,8 +185,8 @@ public final class StorageDir {
    * @param sizeBytes the size of the block in bytes
    * @param report need to be reported during heartbeat with master
    */
-  private void addBlockId(long blockId, long sizeBytes, boolean report) {
-    addBlockId(blockId, sizeBytes, System.currentTimeMillis(), report);
+  private void addBlockId(long userId, long blockId, long sizeBytes, boolean report) {
+    addBlockId(userId, blockId, sizeBytes, System.currentTimeMillis(), report);
   }
 
   /**
@@ -140,7 +197,8 @@ public final class StorageDir {
    * @param accessTimeMs access time of the block in millisecond.
    * @param report whether need to be reported During heart beat with master
    */
-  private void addBlockId(long blockId, long sizeBytes, long accessTimeMs, boolean report) {
+  private void addBlockId(long userId, long blockId, long sizeBytes, long accessTimeMs,
+      boolean report) {
     synchronized (mLastBlockAccessTimeMs) {
       mLastBlockAccessTimeMs.put(blockId, accessTimeMs);
       if (mBlockSizes.containsKey(blockId)) {
@@ -151,6 +209,7 @@ public final class StorageDir {
         mAddedBlockIdList.add(blockId);
       }
     }
+    updateUserAccessBlock(blockId, userId);
   }
 
   /**
@@ -178,7 +237,7 @@ public final class StorageDir {
     Long allocatedBytes = mTempBlockAllocatedBytes.remove(blockInfo);
     returnSpace(userId, allocatedBytes - blockSize);
     if (mFs.rename(srcPath, dstPath)) {
-      addBlockId(blockId, blockSize, false);
+      addBlockId(userId, blockId, blockSize, false);
       updateUserOwnBytes(userId, -blockSize);
       return true;
     } else {
@@ -194,7 +253,7 @@ public final class StorageDir {
    * @return true if success, false otherwise
    * @throws IOException
    */
-  public boolean cancelBlock(long userId, long blockId) throws IOException {  
+  public boolean cancelBlock(long userId, long blockId) throws IOException {
     String filePath = getUserTempFilePath(userId, blockId);
     Long allocatedBytes = mTempBlockAllocatedBytes.remove(new Pair<Long, Long>(userId, blockId));
     if (allocatedBytes == null) {
@@ -283,12 +342,13 @@ public final class StorageDir {
    */
   public boolean deleteBlock(long blockId) throws IOException {
     Long accessTimeMs = mLastBlockAccessTimeMs.remove(blockId);
+    removeUserAccessBlock(blockId);
     if (accessTimeMs == null) {
       LOG.warn("Block does not exist in current StorageDir! blockId:{}", blockId);
       return false;
     }
     String blockfile = getBlockFilePath(blockId);
-    // Should check lock status here 
+    // Should check lock status here
     if (!isBlockLocked(blockId)) {
       if (!mFs.delete(blockfile, false)) {
         LOG.error("Failed to delete block file! filename:{}", blockfile);
@@ -453,6 +513,15 @@ public final class StorageDir {
   }
 
   /**
+   * Get last access time of blocks in current StorageDir for a given user
+   * 
+   * @return set of map entry mapping from block Id to its last access time in current StorageDir
+   */
+  public Set<Entry<Long, Long>> getUserLastBlockAccessTimeMs(long userId) {
+    return mUserToBlockLastAccessTimeMs.get(userId).entrySet();
+  }
+  
+  /**
    * Get size of locked blocks in bytes in current StorageDir
    * 
    * @return size of locked blocks in bytes in current StorageDir
@@ -583,7 +652,7 @@ public final class StorageDir {
         long blockId = CommonUtils.getBlockIdFromFileName(name);
         boolean success = mSpaceCounter.requestSpaceBytes(fileSize);
         if (success) {
-          addBlockId(blockId, fileSize, true);
+          addBlockId(999, blockId, fileSize, true);
         } else {
           mFs.delete(path, true);
           LOG.warn("Pre-existing files exceed storage capacity. deleting file:{}", path);
@@ -738,6 +807,68 @@ public final class StorageDir {
           break;
         }
       }
+    }
+  }
+
+  public Pair<Long, Long> findToEvictBlock(long toBenefitUser, 
+      HashMap<Long, HashSet<Long>> toEvictRecords) {
+    // first: update own bytes by apply records
+    // toEvictRecords is a block to a collection of users
+    HashMap<Long, Long> userBytesHashMap = new HashMap<Long, Long>();
+    for (Long uId : mOwnBytesPerUser.keySet()) {
+      userBytesHashMap.put(uId, mOwnBytesPerUser.get(uId));
+    }
+    for (Long bId: toEvictRecords.keySet()) {
+      long bSize = mBlockSizes.get(bId);
+      HashSet<Long> userSet = toEvictRecords.get(bId);
+      long nOldUsers = mBlockToAllowedUsers.get(bId).size();
+      long oldCost = bSize / nOldUsers;
+      long nNewUsers = nOldUsers - userSet.size();
+      long newCost =  (nNewUsers == 0) ? bSize : (bSize/nNewUsers);
+      for (Long userInSet: userSet) {
+        long updated = userBytesHashMap.get(userInSet) - oldCost + newCost;
+        userBytesHashMap.put(userInSet, updated);
+      }
+    }
+    // now,  pick the user with maximum value
+    long maxValue = -1;
+    long toEvictUser = -1;
+    for (Long uId : userBytesHashMap.keySet()) {
+      long bytes = userBytesHashMap.get(uId);
+      if (bytes > maxValue || (bytes == maxValue && uId == toBenefitUser)) {
+        toEvictUser = uId;
+        maxValue = bytes;
+      }
+    }
+    // now, find the lru block, which is not already evicted, from the user 
+    long blockId = -1;
+    long oldestTime = Long.MAX_VALUE;
+    Set<Entry<Long, Long>> accessTimes = getUserLastBlockAccessTimeMs(toEvictUser);
+
+    for (Entry<Long, Long> accessTime : accessTimes) {
+      if (toEvictRecords.containsKey(accessTime.getKey()) &&
+          toEvictRecords.get(accessTime.getKey()).contains(toEvictUser)) {
+        continue;
+      }
+      if (accessTime.getValue() < oldestTime && !isBlockLocked(accessTime.getKey())) {
+          oldestTime = accessTime.getValue();
+          blockId = accessTime.getKey();
+      }
+    }
+    // update the evict records
+    HashSet<Long> userSet = toEvictRecords.get(blockId);
+    if (userSet == null) {
+      userSet = new HashSet<Long>();
+    }
+    userSet.add(toEvictUser);
+    toEvictRecords.put(blockId, userSet);
+    // 
+    long nOldUsers = mBlockToAllowedUsers.get(blockId).size();
+    long nNewUsers = nOldUsers - userSet.size();
+    if (nNewUsers == 0) {
+      return new Pair<Long, Long>(blockId, oldestTime);
+    } else {
+      return findToEvictBlock(toBenefitUser, toEvictRecords);
     }
   }
 }

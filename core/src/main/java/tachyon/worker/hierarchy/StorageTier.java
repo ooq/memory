@@ -263,13 +263,15 @@ public class StorageTier {
       long requestSizeBytes, Set<Integer> pinList, List<Long> removedBlockIds) throws IOException {
     StorageDir dirSelected = mSpaceAllocator.getStorageDir(dirs, userId, requestSizeBytes);
     if (dirSelected != null) {
+      // if still space left, return the dir directly
       return dirSelected;
     }
 
+    // involve eviction to make space 
     if (mSpaceAllocator.fitInPossible(dirs, requestSizeBytes)) {
       for (int attempt = 0; attempt < FAILED_SPACE_REQUEST_LIMITS; attempt ++) {
         Pair<StorageDir, List<BlockInfo>> evictInfo =
-            mBlockEvictor.getDirCandidate(dirs, pinList, requestSizeBytes);
+            mBlockEvictor.getDirCandidate(userId, dirs, pinList, requestSizeBytes);
         if (evictInfo == null) {
           return null;
         }

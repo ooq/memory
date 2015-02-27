@@ -694,6 +694,16 @@ public class TachyonFS extends AbstractTachyonFS {
   }
 
   /**
+   * set the userId of the master client. This is only used for testing.
+   * 
+   * @return the userId of the master client
+   * @throws IOException
+   */
+  public boolean setUserId(long id) throws IOException {
+    return mMasterClient.setUserId(id);
+  }
+  
+  /**
    * Returns the userId of the master client. This is only used for testing.
    * 
    * @return the userId of the master client

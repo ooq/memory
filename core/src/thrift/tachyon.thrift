@@ -266,7 +266,7 @@ service MasterService {
 }
 
 service WorkerService {
-  void accessBlock(1: i64 blockId)
+  void accessBlock(1: i64 userId, 2: i64 blockId)
 
   void addCheckpoint(1: i64 userId, 2: i32 fileId)
     throws (1: FileDoesNotExistException eP, 2: SuspectedFileSizeException eS,

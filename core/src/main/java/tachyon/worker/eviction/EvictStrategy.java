@@ -39,6 +39,6 @@ public interface EvictStrategy {
    * @return Pair of StorageDir allocated and blockInfoList which contains information of blocks to
    *         be evicted, null if no allocated directory is found
    */
-  public Pair<StorageDir, List<BlockInfo>> getDirCandidate(StorageDir[] storageDirs,
+  public Pair<StorageDir, List<BlockInfo>> getDirCandidate(long userId, StorageDir[] storageDirs,
       Set<Integer> pinList, long requestBytes);
 }
