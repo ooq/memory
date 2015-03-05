@@ -1,0 +1,8 @@
+export CLASSPATH=:/home/qifan/repos/tachyon-0.6/assembly/*:/home/qifan/repos/tachyon-app/target/*:/Users/qifan/repos/tachyon-app/target/*:/Users/qifan/repos/tachyon-0.6/assembly/*:/Users/qifan/repos/tachyon-0.6/libexec/../conf/::/Users/qifan/repos/tachyon-0.6/libexec/../core/target/tachyon-0.6.0-jar-with-dependencies.jar
+java -cp $CLASSPATH tachyon.examples.BasicOperations2 1 copyFromLocal /Users/qifan/repos/tachyon-0.6/singleblock /cache1 tachyon://localhost:19998 THROUGH
+java -cp $CLASSPATH tachyon.examples.BasicOperations2 1 copyFromLocal /Users/qifan/repos/tachyon-0.6/singleblock /cache2 tachyon://localhost:19998 THROUGH
+java -cp $CLASSPATH tachyon.examples.BasicOperations2 1 copyFromLocal /Users/qifan/repos/tachyon-0.6/singleblock /cache3 tachyon://localhost:19998 THROUGH
+#java -cp $CLASSPATH tachyon.examples.BasicOperations2 1 copyFromLocal /Users/qifan/repos/tachyon-0.6/singleblock /cache4 tachyon://localhost:19998 THROUGH
+java -cp $CLASSPATH tachyon.examples.BasicOperations2 2 read /cache1 tachyon://localhost:19998 CACHE
+java -cp $CLASSPATH tachyon.examples.BasicOperations2 3 read /cache2 tachyon://localhost:19998 CACHE
+java -cp $CLASSPATH tachyon.examples.BasicOperations2 3 read /cache3 tachyon://localhost:19998 CACHE
